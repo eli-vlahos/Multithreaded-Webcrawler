@@ -1,19 +1,23 @@
 # Makefile, ECE252  
-# Yiqing Huang, 2018/11/02
+# Yiqing Huang <yqhuang@uwaterloo.ca>
 
 CC = gcc 
-CFLAGS = -Wall -std=c99 -g # "curl-config --cflags" output is empty  
+CFLAGS_XML2 = $(shell xml2-config --cflags)
+CFLAGS_CURL = $(shell curl-config --cflags)
+CFLAGS = -Wall $(CFLAGS_XML2) $(CFLAGS_CURL) -std=gnu99 -g -DDEBUG1_
 LD = gcc
-LDFLAGS = -std=c99 -g 
-LDLIBS = -lcurl -pthread -ldl -lz -lm # "curl-config --libs" output 
+LDFLAGS = -std=gnu99 -g 
+LDLIBS_XML2 = $(shell xml2-config --libs)
+LDLIBS_CURL = $(shell curl-config --libs)
+LDLIBS = $(LDLIBS_XML2) $(LDLIBS_CURL) 
 
-SRCS   = findpng2.c
-OBJS3  = findpng2.o
-TARGETS = findpng2
+SRCS   = main.c
+OBJS3  = main.o
+TARGETS= main.out
 
 all: ${TARGETS}
 
-findpng2: $(OBJS3) main_write_header_cb.o crc.o zutil.o
+main.out: $(OBJS3) 
 	$(LD) -o $@ $^ $(LDLIBS) $(LDFLAGS) 
 
 %.o: %.c 
@@ -26,4 +30,4 @@ findpng2: $(OBJS3) main_write_header_cb.o crc.o zutil.o
 
 .PHONY: clean
 clean:
-	rm -f *~ *.d *.o $(TARGETS) *.png
+	rm -f *~ *.d *.o $(TARGETS) *.png *.html
