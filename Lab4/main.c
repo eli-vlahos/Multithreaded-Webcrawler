@@ -72,7 +72,7 @@ typedef struct node {
 node *frontier_list_head;
 node *png_list_head;
 int frontier_size;
-int png_size;
+// int png_size;
 int pngs_found;
 
 #define PNG_SIG_SIZE    8 /* number of bytes of png image signature data */
@@ -94,6 +94,7 @@ void png_add_URL(char *p_recv_buf);
 char *png_take_next_url();
 void printList(node* head);
 int is_png(unsigned char *buf);
+void free_list(node* head);
 
 // void printList(node* n) {
 //     while (n != NULL) {
@@ -178,7 +179,7 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                 xmlFree(old);
             }
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
-                // printf("href: %s\n", href);
+                printf("href: %s\n", href);
                 // char *url;
                 // sprintf(url, "%s", href);
                 // printf("url!123: %s\n", href);
@@ -410,13 +411,16 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *url = NULL; 
     pid_t pid =getpid();
 
+    curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
+    
     // check that recv_buf seq # isn't in hash table already
     ENTRY url_info;
-    char seq_str[3];
-    sprintf(seq_str, "%d", p_recv_buf->seq);
-    // printf("%s", seq_str);
-    if (hsearch(url_info, FIND) == 0) {
-        curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
+    url_info.key = url;
+    // ENTRY *item_found = ;
+
+    if (hsearch(url_info, FIND) == NULL) {
+        printf("haven't seen this url before!\n");
+        hsearch(url_info, ENTER);
         find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
     }
     // add to visited
@@ -430,10 +434,11 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *eurl = NULL;          /* effective URL */
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(p_recv_buf->buf)) {
-        // printf("The PNG url is: %s\n", eurl);
+        printf("The PNG url is: %s\n", eurl);
         // check png is valid
-        png_size += 1;
+        // pngs_found += 1; // already add in LL function
         png_add_URL(eurl);
+        printf("pngs_found: %i\n", pngs_found);
     }
     sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
     return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
@@ -490,8 +495,8 @@ int main( int argc, char** argv )
     RECV_BUF recv_buf;
     frontier_list_head = NULL;
     png_list_head = NULL;
-    frontier_size = 1;
-    png_size = 0;
+    frontier_size = 0;
+    // png_size = 0;
     pngs_found = 0;
 
     // visited hash table
@@ -500,7 +505,7 @@ int main( int argc, char** argv )
 
     // int c;
     // int t = 1;
-    int m = 50;
+    int m = 10;
     // char *v = NULL;
     // char *str = "option requires an argument";
     
@@ -539,21 +544,22 @@ int main( int argc, char** argv )
     frontier_add_URL(SEED_URL);
 
     while (frontier_size > 0 && pngs_found < m) {
-        printf("hello");
+        // printf("pngs_found: %i\n", pngs_found);
+        printf("frontier size: %i\n", frontier_size);
 
         strcpy(url, frontier_take_next_url());
-        // printf("URL: %s\n", url);
+        printf("URL: %s\n", url);
         // printList(frontier_list_head);
 
         curl_handle = easy_handle_init(&recv_buf, url);
 
         // adding current URL to visited hashmap
         ENTRY url_info;
-        char seq_str[3];
-        sprintf(seq_str, "%d", recv_buf.seq);
+        // char seq_str[3];
+        // sprintf(seq_str, "%d", recv_buf.seq);
         // printf("%s", seq_str);
-        url_info.key = seq_str;
-        url_info.data = url;
+        url_info.key = url;
+        url_info.data = NULL;
         (void) hsearch(url_info, ENTER);
 
         if ( curl_handle == NULL ) {
@@ -567,7 +573,21 @@ int main( int argc, char** argv )
         if( res != CURLE_OK) {
             fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
             cleanup(curl_handle, &recv_buf);
-            exit(1);
+            strcpy(url, frontier_take_next_url());
+            printf("taking next URL: %s\n", url);
+            // printList(frontier_list_head);
+
+            curl_handle = easy_handle_init(&recv_buf, url);
+            ENTRY url_info;
+            // char seq_str[3];
+            // sprintf(seq_str, "%d", recv_buf.seq);
+            // printf("%s", seq_str);
+            url_info.key = url;
+            url_info.data = NULL;
+            (void) hsearch(url_info, ENTER);
+            res = curl_easy_perform(curl_handle);
+
+            // exit(1);
         } else {
         // printf("%lu bytes received in memory %p, seq=%d.\n", \
         //            recv_buf.size, recv_buf.buf, recv_buf.seq);
@@ -575,14 +595,19 @@ int main( int argc, char** argv )
 
         /* process the download data */
         process_data(curl_handle, &recv_buf);
-
+        printf("frontier size: %i\n", frontier_size);
         /* cleaning up */
         if (frontier_size == 0 || pngs_found == m) {
             cleanup(curl_handle, &recv_buf);
         }
+
     }
 
+    printf("PRINTING PNGS FOUND:\n");
     printList(png_list_head);
+
+    free_list(png_list_head);
+    free_list(frontier_list_head);
 
     return 0;
 }
@@ -628,7 +653,6 @@ char *frontier_take_next_url() {
 }
 
 void png_add_URL(char *url) {
-    // RECV_BUF *u = malloc(sizeof(RECV_BUF));
     node *n = malloc(sizeof(node));
     node *current = png_list_head;
     char *val = malloc((strlen(url)+1)*1);
@@ -646,7 +670,7 @@ void png_add_URL(char *url) {
         current->next = n;
         // printf("added later\n");
     }
-    png_size += 1;
+    pngs_found += 1;
     // printList(png_list_head);
 }
  
@@ -662,8 +686,17 @@ char *png_take_next_url() {
     char *u = head->url;
     png_list_head = png_list_head->next;
     free(head);
-    png_size -= 1;
+    // pngs_found -= 1;
     return u;
+}
+
+void free_list(node* head) {
+   node* tmp;
+   while (head != NULL) {
+        tmp = head;
+        head = head->next;
+        free(tmp);
+    }
 }
 
 /* checks to see if it is png file, input is character array */
