@@ -11,13 +11,16 @@ LDLIBS_XML2 = $(shell xml2-config --libs)
 LDLIBS_CURL = $(shell curl-config --libs)
 LDLIBS = $(LDLIBS_XML2) $(LDLIBS_CURL) 
 
-SRCS   = main.c
-OBJS3  = main.o
-TARGETS= main.out
+SRCS   = findpng2.c main.c
+OBJS3  = findpng2.o
+TARGETS= findpng2 main.out
 
 all: ${TARGETS}
 
-main.out: $(OBJS3) 
+findpng2: $(OBJS3) 
+	$(LD) -o $@ $^ $(LDLIBS) $(LDFLAGS) 
+
+main.out: main.o
 	$(LD) -o $@ $^ $(LDLIBS) $(LDFLAGS) 
 
 %.o: %.c 

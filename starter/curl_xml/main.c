@@ -39,7 +39,7 @@
 #include <libxml/uri.h>
 
 
-#define SEED_URL "http://ece252-1.uwaterloo.ca/lab4/"
+#define SEED_URL "http://ece252-1.uwaterloo.ca/lab4"
 #define ECE252_HEADER "X-Ece252-Fragment: "
 #define BUF_SIZE 1048576  /* 1024*1024 = 1M */
 #define BUF_INC  524288   /* 1024*512  = 0.5M */
@@ -170,7 +170,7 @@ size_t header_cb_curl(char *p_recv, size_t size, size_t nmemb, void *userdata)
     RECV_BUF *p = userdata;
 
 #ifdef DEBUG1_
-    printf("%s", p_recv);
+    // printf("%s", p_recv);
 #endif /* DEBUG1_ */
     if (realsize > strlen(ECE252_HEADER) &&
 	strncmp(p_recv, ECE252_HEADER, strlen(ECE252_HEADER)) == 0) {
@@ -369,8 +369,8 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
 
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
     find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
-    sprintf(fname, "./output_%d.html", pid);
-    return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
+    // sprintf(fname, "./output_%d.html", pid);
+    // return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
 int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
@@ -383,8 +383,8 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
         printf("The PNG url is: %s\n", eurl);
     }
 
-    sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
-    return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
+    // sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
+    return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 /**
  * @brief process teh download data by curl
@@ -402,7 +402,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
 
     res = curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
     if ( res == CURLE_OK ) {
-	    printf("Response code: %ld\n", response_code);
+	    // printf("Response code: %ld\n", response_code);
     }
 
     if ( response_code >= 400 ) { 
@@ -413,7 +413,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *ct = NULL;
     res = curl_easy_getinfo(curl_handle, CURLINFO_CONTENT_TYPE, &ct);
     if ( res == CURLE_OK && ct != NULL ) {
-    	printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
+    	// printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
     } else {
         fprintf(stderr, "Failed obtain Content-Type\n");
         return 2;
@@ -427,7 +427,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
         sprintf(fname, "./output_%d", pid);
     }
 
-    return write_file(fname, p_recv_buf->buf, p_recv_buf->size);
+    return 0;//write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
 int main( int argc, char** argv ) 
@@ -442,7 +442,7 @@ int main( int argc, char** argv )
     } else {
         strcpy(url, argv[1]);
     }
-    printf("%s: URL is %s\n", argv[0], url);
+    // printf("%s: URL is %s\n", argv[0], url);
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl_handle = easy_handle_init(&recv_buf, url);
@@ -460,8 +460,8 @@ int main( int argc, char** argv )
         cleanup(curl_handle, &recv_buf);
         exit(1);
     } else {
-	printf("%lu bytes received in memory %p, seq=%d.\n", \
-               recv_buf.size, recv_buf.buf, recv_buf.seq);
+	// printf("%lu bytes received in memory %p, seq=%d.\n", \
+    //            recv_buf.size, recv_buf.buf, recv_buf.seq);
     }
 
     /* process the download data */

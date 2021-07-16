@@ -33,13 +33,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <curl/curl.h>
-#include <search.h>
-
 #include <libxml/HTMLparser.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 #include <libxml/uri.h>
-
+#include <search.h>
 
 #define SEED_URL "http://ece252-1.uwaterloo.ca/lab4"
 #define ECE252_HEADER "X-Ece252-Fragment: "
@@ -70,7 +68,7 @@ typedef struct node {
 } node;
 
 node *list_head;
-int frontier_size;
+int frontier_empty;
 int pngs_found;
 
 htmlDocPtr mem_getdoc(char *buf, int size, const char *url);
@@ -85,27 +83,7 @@ int write_file(const char *path, const void *in, size_t len);
 CURL *easy_handle_init(RECV_BUF *ptr, const char *url);
 int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf);
 void frontier_add_URL(char *p_recv_buf);
-char *frontier_take_next_url();
-void printList(node* head);
-
-// void printList(node* n) {
-//     while (n != NULL) {
-//         printf ("LL: %s\n", n->url);
-//         n = n->next;
-//     }
-// }
-
-void printList(node* head)
-{
-    node* ptr = head;
-    while (ptr)
-    {
-        printf("LL: %s \n", ptr->url);
-        ptr = ptr->next;
-    }
- 
-    printf("null\n");
-}
+RECV_BUF *frontier_take_next_url();
 
 htmlDocPtr mem_getdoc(char *buf, int size, const char *url)
 {
@@ -172,11 +150,7 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
             }
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
                 printf("href: %s\n", href);
-                // char *url;
-                // sprintf(url, "%s", href);
-                // printf("url!123: %s\n", href);
-                frontier_add_URL(href);
-                printList(list_head);
+                // printf("added to frontier\n");
             }
             xmlFree(href);
         }
@@ -403,16 +377,24 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *url = NULL; 
     pid_t pid =getpid();
 
-    // check that recv_buf seq # isn't in hash table already
+    curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
+    find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
+
+    // add url to frontier (urls to visit) if url is not in visited hashmap
     // ENTRY url_info;
     // char seq_str[3];
     // sprintf(seq_str, "%d", p_recv_buf->seq);
-    // printf("%s", seq_str);
+    // printf("seq# %i\n", p_recv_buf->seq);
+    // printf("prchtml %s\n", seq_str);
+    // url_info.key = seq_str;
+
     // if (hsearch(url_info, FIND) == 0) {
-    curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
-    find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
+    //     frontier_add_URL(url);
+    //     printf("added to frontier\n");
     // }
-    // add to visited
+
+    // sprintf(fname, "./output_%d.html", pid);
+    // printf("added %s to frontier\n", fname);
     return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
@@ -425,9 +407,9 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     if ( eurl != NULL) {
         printf("The PNG url is: %s\n", eurl);
     }
-    // check png is valid
     pngs_found += 1;
-    // sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
+
+    sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
     return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 /**
@@ -446,7 +428,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
 
     res = curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
     if ( res == CURLE_OK ) {
-	    // printf("Response code: %ld\n", response_code);
+	    printf("Response code: %ld\n", response_code);
     }
 
     if ( response_code >= 400 ) { 
@@ -464,14 +446,16 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     }
 
     if ( strstr(ct, CT_HTML) ) {
+        // add to fontier
         return process_html(curl_handle, p_recv_buf);
     } else if ( strstr(ct, CT_PNG) ) {
+        // add to results if unique
         return process_png(curl_handle, p_recv_buf);
     } else {
         sprintf(fname, "./output_%d", pid);
     }
 
-    return 0;//write_file(fname, p_recv_buf->buf, p_recv_buf->size);
+    return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
 int main( int argc, char** argv ) 
@@ -481,7 +465,7 @@ int main( int argc, char** argv )
     char url[256];
     RECV_BUF recv_buf;
     list_head = NULL;
-    frontier_size = 0;
+    frontier_empty = 0;
     pngs_found = 0;
 
     // visited hash table
@@ -490,7 +474,7 @@ int main( int argc, char** argv )
 
     // int c;
     // int t = 1;
-    int m = 50;
+    // int m = 50;
     // char *v = NULL;
     // char *str = "option requires an argument";
     
@@ -524,61 +508,57 @@ int main( int argc, char** argv )
     //         return -1;
     //     }
     // }
+
+
+    // while (!frontier_empty && pngs_found < m) {
+        
+        // use seed url first time
+    // if (use_seed_url) {
+    if (argc == 1) {
+        strcpy(url, SEED_URL); 
+    } else {
+        strcpy(url, argv[1]);
+    }
+    // use_seed_url = 0;
+    // }
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    // while (frontier_size > 0 && pngs_found < m) {
-    for (int i = 0; i < 3; i++) {
-        // use seed url first time
-        if (use_seed_url) {
-            if (argc == 1) {
-                strcpy(url, SEED_URL); 
-            } else {
-                strcpy(url, argv[1]);
-            }
-            use_seed_url = 0;
-        } else {
-            strcpy(url, frontier_take_next_url());
-            printf("URL: %s\n", url);
-            // printList(list_head);
-        }
+    curl_handle = easy_handle_init(&recv_buf, url);
 
-        curl_handle = easy_handle_init(&recv_buf, url);
+    // }
 
-        // // adding current URL to visited hashmap
-        // ENTRY url_info;
-        // char seq_str[3];
-        // sprintf(seq_str, "%d", recv_buf.seq);
-        // printf("%s", seq_str);
-        // url_info.key = seq_str;
-        // url_info.data = url;
-        // (void) hsearch(url_info, ENTER);
 
-        if ( curl_handle == NULL ) {
-            fprintf(stderr, "Curl initialization failed. Exiting...\n");
-            curl_global_cleanup();
-            abort();
-        }
-        /* get it! */
-        res = curl_easy_perform(curl_handle);
+    // adding current URL to visited hashmap
+    // ENTRY url_info;
+    // char seq_str[3];
+    // sprintf(seq_str, "%d", recv_buf.seq);
+    // printf("%s", seq_str);
+    // url_info.key = seq_str;
+    // url_info.data = recv_buf.buf;
+    // (void) hsearch(url_info, ENTER);
 
-        if( res != CURLE_OK) {
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-            cleanup(curl_handle, &recv_buf);
-            exit(1);
-        } else {
-        // printf("%lu bytes received in memory %p, seq=%d.\n", \
-        //            recv_buf.size, recv_buf.buf, recv_buf.seq);
-        }
+    if ( curl_handle == NULL ) {
+        fprintf(stderr, "Curl initialization failed. Exiting...\n");
+        curl_global_cleanup();
+        abort();
+    }
+    /* get it! */
+    res = curl_easy_perform(curl_handle);
 
-        /* process the download data */
-        process_data(curl_handle, &recv_buf);
-
-        /* cleaning up */
-        if (frontier_size == 0 || pngs_found == m) {
-            cleanup(curl_handle, &recv_buf);
-        }
+    if( res != CURLE_OK) {
+        fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+        cleanup(curl_handle, &recv_buf);
+        exit(1);
+    } else {
+	printf("%lu bytes received in memory %p, seq=%d.\n", \
+               recv_buf.size, recv_buf.buf, recv_buf.seq);
     }
 
+    /* process the download data */
+    process_data(curl_handle, &recv_buf);
+
+    /* cleaning up */
+    cleanup(curl_handle, &recv_buf);
     return 0;
 }
 
@@ -586,28 +566,12 @@ int main( int argc, char** argv )
 void frontier_add_URL(char *url) {
     // RECV_BUF *u = malloc(sizeof(RECV_BUF));
     node *n = malloc(sizeof(node));
-    node *current = list_head;
-    char *val = malloc((strlen(url)+1)*1);
-    strcpy(val,url);
-    n->url = val;
-    n->next = NULL;
-
-    if (list_head == NULL){
-        list_head = n;
-        // printf("added at beginning\n");
-    } else {
-        while (current->next != NULL) {
-            current = current->next;
-        }
-        current->next = n;
-        // printf("added later\n");
-    }
-    frontier_size += 1;
-    // printList(list_head);
+    n->url = url;
+    n->next = list_head;
+    list_head = n;
 }
- 
 
-char *frontier_take_next_url() {
+RECV_BUF *frontier_take_next_url() {
     if (list_head == NULL)
     {
         /* Something has gone wrong */
@@ -615,9 +579,8 @@ char *frontier_take_next_url() {
         exit(-1);
     }
     node *head = list_head;
-    char *u = head->url;
+    RECV_BUF *u = head->url;
     list_head = list_head->next;
     free(head);
-    frontier_size -= 1;
     return u;
 }
