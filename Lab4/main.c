@@ -71,6 +71,7 @@ typedef struct node {
 
 node *frontier_list_head;
 node *png_list_head;
+node *visited_list_head;
 int frontier_size;
 // int png_size;
 int pngs_found;
@@ -95,25 +96,7 @@ char *png_take_next_url();
 void printList(node* head);
 int is_png(unsigned char *buf);
 void free_list(node* head);
-
-// void printList(node* n) {
-//     while (n != NULL) {
-//         printf ("LL: %s\n", n->url);
-//         n = n->next;
-//     }
-// }
-
-void printList(node* head)
-{
-    node* ptr = head;
-    while (ptr)
-    {
-        printf("LL: %s \n", ptr->url);
-        ptr = ptr->next;
-    }
- 
-    printf("null\n");
-}
+int search(char *url);
 
 htmlDocPtr mem_getdoc(char *buf, int size, const char *url)
 {
@@ -300,39 +283,7 @@ void cleanup(CURL *curl, RECV_BUF *ptr)
         curl_global_cleanup();
         recv_buf_cleanup(ptr);
 }
-/**
- * @brief output data in memory to a file
- * @param path const char *, output file path
- * @param in  void *, input data to be written to the file
- * @param len size_t, length of the input data in bytes
- */
 
-// int write_file(const char *path, const void *in, size_t len)
-// {
-//     FILE *fp = NULL;
-
-//     if (path == NULL) {
-//         fprintf(stderr, "write_file: file name is null!\n");
-//         return -1;
-//     }
-
-//     if (in == NULL) {
-//         fprintf(stderr, "write_file: input data is null!\n");
-//         return -1;
-//     }
-
-//     fp = fopen(path, "wb");
-//     if (fp == NULL) {
-//         perror("fopen");
-//         return -2;
-//     }
-
-//     if (fwrite(in, 1, len, fp) != len) {
-//         fprintf(stderr, "write_file: imcomplete write!\n");
-//         return -3; 
-//     }
-//     return fclose(fp);
-// }
 
 /**
  * @brief create a curl easy handle and set the options.
@@ -416,14 +367,14 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     // check that recv_buf seq # isn't in hash table already
     ENTRY url_info;
     // url_info.key = url;
-    char *val = malloc((strlen(url)+1)*1);
-    strcpy(val, url);
-    printf("hello:\n");
+    // char *val = malloc((strlen(url)+1)*1);
+    // strcpy(val, url);
+    // printf("hello:\n");
     // printf("curr url frontier: %s\n",curr_url_frontier->url);
-    url_info.key = val;
+    url_info.key = url;
     url_info.data = NULL;
     // ENTRY *item_found = 
-
+    
     printf("hsearch returns: %i\n", hsearch(url_info, FIND));
 
     if (hsearch(url_info, FIND) == NULL) {
@@ -570,9 +521,9 @@ int main( int argc, char** argv )
         // char seq_str[3];
         // sprintf(seq_str, "%d", recv_buf.seq);
         // printf("%s", seq_str);
-        url_info.key = url;
-        url_info.data = NULL;
-        (void) hsearch(url_info, ENTER);
+        // url_info.key = url;
+        // url_info.data = NULL;
+        // (void) hsearch(url_info, ENTER);
 
         if ( curl_handle == NULL ) {
             fprintf(stderr, "Curl initialization failed. Exiting...\n");
@@ -685,6 +636,35 @@ void png_add_URL(char *url) {
     pngs_found += 1;
     // printList(png_list_head);
 }
+
+void visited_add_URL(char *url) {
+    node *n = malloc(sizeof(node));
+    node *current = visited_list_head;
+    char *val = malloc((strlen(url)+1)*1);
+    strcpy(val,url);
+    n->url = val;
+    n->next = NULL;
+
+    if (visited_list_head == NULL){
+        visited_list_head = n;
+    } else {
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = n;
+    }
+}
+
+
+int search(char *url) {
+    node* current = visited_list_head;
+    while (current != NULL) {
+        if (current->url == url)
+            return 1;
+        current = current->next;
+    }
+    return 0;
+}
  
 
 char *png_take_next_url() {
@@ -724,4 +704,13 @@ int is_png(unsigned char *buf) {
         }
     }
     return is_PNG;
+}
+
+void printList(node* head) {
+    node* curr = head;
+    while (curr) {
+        printf("LL: %s \n", curr->url);
+        curr = curr->next;
+    }
+    printf("null\n");
 }
