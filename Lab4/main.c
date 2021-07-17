@@ -412,18 +412,30 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     pid_t pid =getpid();
 
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
-    
+    // node *curr_url_frontier = frontier_list_head;
     // check that recv_buf seq # isn't in hash table already
     ENTRY url_info;
-    url_info.key = url;
-    // ENTRY *item_found = ;
+    // url_info.key = url;
+    char *val = malloc((strlen(url)+1)*1);
+    strcpy(val, url);
+    printf("hello:\n");
+    // printf("curr url frontier: %s\n",curr_url_frontier->url);
+    url_info.key = val;
+    url_info.data = NULL;
+    // ENTRY *item_found = 
+
+    printf("hsearch returns: %i\n", hsearch(url_info, FIND));
 
     if (hsearch(url_info, FIND) == NULL) {
         printf("haven't seen this url before!\n");
+        // add to visited
+        printf("URL WE aDD: %s\n", url_info.key);
         hsearch(url_info, ENTER);
         find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
+    } else {
+        printf("already visited this url\n");
     }
-    // add to visited
+    
     return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
