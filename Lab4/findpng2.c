@@ -119,7 +119,7 @@ htmlDocPtr mem_getdoc(char *buf, int size, const char *url)
     htmlDocPtr doc = htmlReadMemory(buf, size, url, NULL, opts);
     
     if ( doc == NULL ) {
-        fprintf(stderr, "Document not parsed successfully.\n");
+        // fprintf(stderr, "Document not parsed successfully.\n");
         return NULL;
     }
     return doc;
@@ -133,18 +133,18 @@ xmlXPathObjectPtr getnodeset (xmlDocPtr doc, xmlChar *xpath)
 
     context = xmlXPathNewContext(doc);
     if (context == NULL) {
-        printf("Error in xmlXPathNewContext\n");
+        // printf("Error in xmlXPathNewContext\n");
         return NULL;
     }
     result = xmlXPathEvalExpression(xpath, context);
     xmlXPathFreeContext(context);
     if (result == NULL) {
-        printf("Error in xmlXPathEvalExpression\n");
+        // printf("Error in xmlXPathEvalExpression\n");
         return NULL;
     }
     if(xmlXPathNodeSetIsEmpty(result->nodesetval)){
         xmlXPathFreeObject(result);
-        printf("No result\n");
+        // printf("No result\n");
         return NULL;
     }
     return result;
@@ -407,7 +407,7 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *eurl = NULL;          /* effective URL */
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(p_recv_buf->buf)) {
-        printf("The PNG url is: %s\n", eurl);
+        // printf("The PNG url is: %s\n", eurl);
         // ENTRY url_info;
         // url_info.key = strdup(eurl);
         // url_info.data = NULL;
@@ -415,7 +415,7 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
 
         // if (!visited_search(eurl)) {
         png_add_URL(eurl);
-        printf("pngs_found: %i\n", pngs_found);
+        // printf("pngs_found: %i\n", pngs_found);
         // }
     }
     // sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
@@ -441,7 +441,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     }
 
     if ( response_code >= 400 ) { 
-    	fprintf(stderr, "Error.\n");
+    	// fprintf(stderr, "Error.\n");
         return 1;
     }
 
@@ -450,7 +450,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     if ( res == CURLE_OK && ct != NULL ) {
     	// printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
     } else {
-        fprintf(stderr, "Failed obtain Content-Type\n");
+        //fprintf(stderr, "Failed obtain Content-Type\n");
         return 2;
     }
 
@@ -489,7 +489,7 @@ void *do_work(void *arg) {
 
         curl_handle = easy_handle_init(&recv_buf, url);
         if ( curl_handle == NULL ) {
-            fprintf(stderr, "Curl initialization failed. Exiting...\n");
+            // fprintf(stderr, "Curl initialization failed. Exiting...\n");
             curl_global_cleanup();
             abort();
         }
@@ -497,10 +497,10 @@ void *do_work(void *arg) {
         res = curl_easy_perform(curl_handle);
 
         while (res != CURLE_OK && frontier_size > 0) {
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+            // fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
             cleanup(curl_handle, &recv_buf);
             strcpy(url, frontier_take_next_url());
-            printf("taking next URL: %s\n", url);
+            // printf("taking next URL: %s\n", url);
             curl_handle = easy_handle_init(&recv_buf, url);
             ENTRY url_info;
             url_info.key = url;
@@ -515,7 +515,7 @@ void *do_work(void *arg) {
 
             /* process the download data */
             process_data(curl_handle, &recv_buf);
-            printf("frontier size: %i\n", frontier_size);
+            // printf("frontier size: %i\n", frontier_size);
 
         }
         
@@ -557,46 +557,47 @@ int main( int argc, char** argv )
     int use_seed_url = 1;
 
     int c;
-    int t = 5;
-    int m = 13;
+    int t;
+    int m;
     char *v = NULL;
     int log_lines = 15;
     char *str = "option requires an argument";
     
-    // while ((c = getopt (argc, argv, "t:m:v")) != -1) {
-    //     switch (c) {
-    //     case 't':
-	//         t = strtoul(optarg, NULL, 10);
-	//         printf("option -t specifies a value of %d.\n", t);
-	//         if (t <= 0) {
-    //             fprintf(stderr, "%s: %s > 0 -- 't'\n", argv[0], str);
-    //             return -1;
-    //         }
-    //         break;
-    //     case 'm':
-    //         m = strtoul(optarg, NULL, 10);
-	//         printf("option -m specifies a value of %d.\n", m);
-    //         if (m <= 0) {
-    //             fprintf(stderr, "%s: %s > 0 -- 'n'\n", argv[0], str);
-    //             return -1;
-    //         }
-    //         break;
-    //     // case 'v':
-    //     //     v = optarg;
-	//     //     printf("option -v specifies a value of %s.\n", *v);
-    //     //     // if (v <= 0) {
-    //     //     //     fprintf(stderr, "%s: %s 1, 2, or 3 -- 'v'\n", argv[0], str);
-    //     //     //     return -1;
-    //     //     // }
-    //     //     break;
-    //     default:
-    //         return -1;
-    //     }
-    // }
+    while ((c = getopt (argc, argv, "t:m:v")) != -1) {
+        switch (c) {
+        case 't':
+	        t = strtoul(optarg, NULL, 10);
+	        printf("option -t specifies a value of %d.\n", t);
+	        if (t <= 0) {
+                fprintf(stderr, "%s: %s > 0 -- 't'\n", argv[0], str);
+                return -1;
+            }
+            break;
+        case 'm':
+            m = strtoul(optarg, NULL, 10);
+	        printf("option -m specifies a value of %d.\n", m);
+            if (m <= 0) {
+                fprintf(stderr, "%s: %s > 0 -- 'n'\n", argv[0], str);
+                return -1;
+            }
+            break;
+        case 'v':
+            v = argv[argc-2];
+            if (v[0] == m){
+                v = NULL;
+            }
+            else{
+	            printf("option -v specifies a value of %s.\n", v);
+            }
+            break;
+        }
+    }
+    // printf("hello");
+    char *seed_url = argv[argc-1];
+
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    frontier_add_URL(SEED_URL);
-    // visited_add_URL(SEED_URL);
+    frontier_add_URL(seed_url);
 
     // threads are initialized
     pthread_t *p_tids = malloc(sizeof(pthread_t) * t);
@@ -615,16 +616,15 @@ int main( int argc, char** argv )
         //fprintf(stderr, "Thread %d terminated\n", i);
     }
 
-    printf("PRINTING PNGS FOUND:\n");
-    printList(png_list_head);
+    // printf("PRINTING PNGS FOUND:\n");
+    // printList(png_list_head);
 
-    if (log_lines != 0){
+    if (v != NULL){
 
-        // need to replace file name
         FILE *fp = NULL;
-        fp = fopen("file.txt", "w");
+        fp = fopen(v, "w");
 
-        for (int i = 0; i < log_lines; i++){
+        while(frontier_list_head !=NULL){
             if (visited_list_head == NULL){
                 break;
             }
@@ -654,7 +654,7 @@ int main( int argc, char** argv )
     fclose(png_file);
 
     times[1] = (tv.tv_sec) + tv.tv_usec/1000000.;
-    printf("findpng2 execution time: %u seconds", getpid(),  times[1] - times[0]);
+    printf("findpng2 execution time: %u seconds\n", getpid(),  times[1] - times[0]);
 
     free_list(png_list_head);
     free_list(frontier_list_head);
@@ -673,7 +673,6 @@ int main( int argc, char** argv )
 
 
 void frontier_add_URL(char *url) {
-    // RECV_BUF *u = malloc(sizeof(RECV_BUF));
     node *n = malloc(sizeof(node));
     node *current = frontier_list_head;
     char *val = malloc((strlen(url)+1)*1);
@@ -683,16 +682,13 @@ void frontier_add_URL(char *url) {
 
     if (frontier_list_head == NULL){
         frontier_list_head = n;
-        // printf("added at beginning\n");
     } else {
         while (current->next != NULL) {
             current = current->next;
         }
         current->next = n;
-        // printf("added later\n");
     }
     frontier_size += 1;
-    // printList(frontier_list_head);
 }
  
 
