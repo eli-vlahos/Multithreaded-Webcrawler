@@ -38,6 +38,7 @@
 #include <semaphore.h>
 #include <openssl/sha.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include <libxml/HTMLparser.h>
 #include <libxml/parser.h>
@@ -378,9 +379,25 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     pid_t pid =getpid();
 
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
-    find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
+    // node *curr_url_frontier = frontier_list_head;
+    // check that recv_buf seq # isn't in hash table already
+    // ENTRY url_info;
+    // url_info.key = strdup(url);
+    // url_info.data = NULL;
+    
+    // printf("hsearch returns: %i\n", hsearch(url_info, FIND));
 
-    return 0;
+    // if (hsearch(url_info, FIND) == NULL) {
+    //     printf("haven't seen this url before!\n");
+    //     // add to visited
+    //     // printf("URL WE aDD: %s\n", url_info.key);
+    //     // hsearch(url_info, ENTER);
+    find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
+    // } else {
+    //     printf("already visited this url\n");
+    // }
+    
+    return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
 int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
@@ -391,10 +408,18 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(p_recv_buf->buf)) {
         printf("The PNG url is: %s\n", eurl);
+        // ENTRY url_info;
+        // url_info.key = strdup(eurl);
+        // url_info.data = NULL;
+        // printf("hsearch returns: %i\n", hsearch(url_info, FIND));
+
+        // if (!visited_search(eurl)) {
         png_add_URL(eurl);
         printf("pngs_found: %i\n", pngs_found);
+        // }
     }
-    return 0;
+    // sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
+    return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 /**
  * @brief process teh download data by curl
@@ -455,9 +480,8 @@ void *do_work(void *arg) {
     while (frontier_size > 0 && pngs_found < m) {
         // printf("frontier size: %i\n", frontier_size);
 
-        // sem_wait( &available );
-        // pthread_mutex_lock( &mutex );
-
+        sem_wait( &available );
+        pthread_mutex_lock( &mutex );
 
         strcpy(url, frontier_take_next_url());
         // printf("URL: %s\n", url);
@@ -500,8 +524,8 @@ void *do_work(void *arg) {
             cleanup(curl_handle, &recv_buf);
         }
 
-        // pthread_mutex_unlock( &mutex );
-        // sem_post( &available );
+        pthread_mutex_unlock( &mutex );
+        sem_post( &available );
 
     }
 
@@ -514,8 +538,16 @@ int main( int argc, char** argv )
     png_list_head = NULL;
     visited_list_head = NULL;
     frontier_size = 0;
-    // png_size = 0;
     pngs_found = 0;
+
+    double times[2];
+    struct timeval tv;
+
+    if (gettimeofday(&tv, NULL) != 0) {
+        perror("gettimeofday");
+        abort();
+    }
+    times[0] = (tv.tv_sec) + tv.tv_usec/1000000.;
 
     sem_init( &available, 0, 1 );
     pthread_mutex_init( &mutex, NULL );
@@ -525,9 +557,10 @@ int main( int argc, char** argv )
     int use_seed_url = 1;
 
     int c;
-    int t = 1;
+    int t = 5;
     int m = 13;
     char *v = NULL;
+    int log_lines = 15;
     char *str = "option requires an argument";
     
     // while ((c = getopt (argc, argv, "t:m:v")) != -1) {
@@ -584,6 +617,44 @@ int main( int argc, char** argv )
 
     printf("PRINTING PNGS FOUND:\n");
     printList(png_list_head);
+
+    if (log_lines != 0){
+
+        // need to replace file name
+        FILE *fp = NULL;
+        fp = fopen("file.txt", "w");
+
+        for (int i = 0; i < log_lines; i++){
+            if (visited_list_head == NULL){
+                break;
+            }
+            fprintf(fp, visited_list_head->url);
+            fprintf(fp, "\n");
+            
+            // do if statement
+            node *temp = visited_list_head;
+            visited_list_head = visited_list_head->next;
+            free(temp);
+        }
+        fclose(fp);
+    }
+
+    // need to replace file name
+    FILE *png_file = NULL;
+    png_file = fopen("png_urls.txt", "w");
+
+    while(png_list_head != NULL){
+        fprintf(png_file, png_list_head->url);
+        fprintf(png_file, "\n");
+        
+        node *temp = png_list_head;
+        png_list_head = png_list_head->next;
+        free(temp);
+    }
+    fclose(png_file);
+
+    times[1] = (tv.tv_sec) + tv.tv_usec/1000000.;
+    printf("findpng2 execution time: %u seconds", getpid(),  times[1] - times[0]);
 
     free_list(png_list_head);
     free_list(frontier_list_head);
