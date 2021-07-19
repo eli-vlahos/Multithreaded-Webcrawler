@@ -1,0 +1,15 @@
+http://ece252-1.uwaterloo.ca/lab4
+http://ece252-1.uwaterloo.ca/~yqhuang/lab4/sub1/index.html
+http://ece252-1.uwaterloo.ca:2540/image?q=gAAAAABdHkoqPlVGPQPMpFG8Vjvrodu_pZqXMC4jGRiLcYwY6MkhhFG1m5a3x5ZYDOiLGFmz8FTbq3sAva7QKiXY5YNIxrBdxg==
+http://ece252-3.uwaterloo.ca:2540/image?q=gAAAAABdHkoqOKR-cFRCkiCUBEMAAAWfDvBFlRisL9ysLWHYHbcQbn1b28PV_uHBZ0gJf5bvzrnf1HNXxB6KRlAVETwTIqBH2Q==
+http://ece252-1.uwaterloo.ca/~yqhuang/lab4/imgs/Disguise.png
+http://ece252-1.uwaterloo.ca/~yqhuang/lab4/imgs/crawler_arch.jpg
+http://ece252-1.uwaterloo.ca/~yqhuang/lab4/imgs/para.jpg
+http://ece252-1.uwaterloo.ca/~yqhuang/lab4/imgs/cpp.jpg
+http://ece252-1.uwaterloo.ca/~yqhuang/lab4/#top
+http://ece252-3.uwaterloo.ca:2540/image?q=gAAAAABdHkoqHgneYcBPDcdDxg--c4YxeUrIvCPv4isF7QT6jXM2gPwjb6x7TyUbFH_t2vnvAia7UxPfZZzW857ibyihf3Z-kA==
+http://ece252-2.uwaterloo.ca:2540/image?q=gAAAAABdHkoq7SFWjS8mYsbQWI6gWrGGRZqmf3JMIBpfdUl7ReUr6i2LEiHVtbnuTZXDwMiR-8XJAXM_gVnbrhvkaPtscZvEDA==
+http://ece252-2.uwaterloo.ca:2540/image?q=gAAAAABdHkoq29RiyqqWo4yEbjpMs0wYkNlrZo8z-jTdBqJibvMiKNeiwo_xhu-3KHbURXZYME-j5y4tmMf4GFNo2Fk2ys5a2A==
+http://ece252-3.uwaterloo.ca:2540/image?q=gAAAAABdHkoqAlkB_P5kNgJWZEIDidQEAEMWZDuHC-jf1NpLzebENXICgGZovAK3fqJSQk9mjWnxboa3fZ6KAItmv-6NLihZ0A==
+http://ece252-1.uwaterloo.ca:2540/image?q=gAAAAABdHkoqtuljtcVzSazkwT4SVEw_rlEYwknlCq6mKLqndncMei2Om8ccO2ieak5QQCVNJKuwG5FYmX8sgbhKht2xt4ZNlw==
+http://ece252-2.uwaterloo.ca:2540/image?q=gAAAAABdHkoq292-4eAqc4xZ-nwNibr1F5ZZCJhojZGV7hQMtNzryLwR8grsztNSurbqnucszcyMbtSE8BaFg049sI6WZ4aDfg==

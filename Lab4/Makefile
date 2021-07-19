@@ -33,4 +33,4 @@ main.out: main.o
 
 .PHONY: clean
 clean:
-	rm -f *~ *.d *.o $(TARGETS) *.png *.html
+	rm -f *~ *.d *.o $(TARGETS) *.png *.html *.txt

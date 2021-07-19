@@ -38,6 +38,7 @@
 #include <semaphore.h>
 #include <openssl/sha.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include <libxml/HTMLparser.h>
 #include <libxml/parser.h>
@@ -479,9 +480,8 @@ void *do_work(void *arg) {
     while (frontier_size > 0 && pngs_found < m) {
         // printf("frontier size: %i\n", frontier_size);
 
-        // sem_wait( &available );
-        // pthread_mutex_lock( &mutex );
-
+        sem_wait( &available );
+        pthread_mutex_lock( &mutex );
 
         strcpy(url, frontier_take_next_url());
         // printf("URL: %s\n", url);
@@ -524,8 +524,8 @@ void *do_work(void *arg) {
             cleanup(curl_handle, &recv_buf);
         }
 
-        // pthread_mutex_unlock( &mutex );
-        // sem_post( &available );
+        pthread_mutex_unlock( &mutex );
+        sem_post( &available );
 
     }
 
@@ -538,8 +538,16 @@ int main( int argc, char** argv )
     png_list_head = NULL;
     visited_list_head = NULL;
     frontier_size = 0;
-    // png_size = 0;
     pngs_found = 0;
+
+    double times[2];
+    struct timeval tv;
+
+    if (gettimeofday(&tv, NULL) != 0) {
+        perror("gettimeofday");
+        abort();
+    }
+    times[0] = (tv.tv_sec) + tv.tv_usec/1000000.;
 
     sem_init( &available, 0, 1 );
     pthread_mutex_init( &mutex, NULL );
@@ -552,6 +560,7 @@ int main( int argc, char** argv )
     int t = 1;
     int m = 13;
     char *v = NULL;
+    int log_lines = 15;
     char *str = "option requires an argument";
     
     // while ((c = getopt (argc, argv, "t:m:v")) != -1) {
@@ -608,6 +617,41 @@ int main( int argc, char** argv )
 
     printf("PRINTING PNGS FOUND:\n");
     printList(png_list_head);
+
+    if (log_lines != 0){
+
+        // need to replace file name
+        FILE *fp = NULL;
+        fp = fopen("file.txt", "w");
+
+        for (int i = 0; i < log_lines; i++){
+            if (visited_list_head == NULL){
+                break;
+            }
+            fprintf(fp, visited_list_head->url);
+            fprintf(fp, "\n");
+            
+            // do if statement
+            node *temp = visited_list_head;
+            visited_list_head = visited_list_head->next;
+            free(temp);
+        }
+        fclose(fp);
+    }
+
+    // need to replace file name
+    FILE *png_file = NULL;
+    png_file = fopen("png_urls.txt", "w");
+
+    while(png_list_head != NULL){
+        fprintf(png_file, png_list_head->url);
+        fprintf(png_file, "\n");
+        
+        node *temp = png_list_head;
+        png_list_head = png_list_head->next;
+        free(temp);
+    }
+    fclose(png_file);
 
     free_list(png_list_head);
     free_list(frontier_list_head);
