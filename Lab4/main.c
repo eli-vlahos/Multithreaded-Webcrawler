@@ -34,6 +34,10 @@
 #include <unistd.h>
 #include <curl/curl.h>
 #include <search.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <openssl/sha.h>
+#include <stdbool.h>
 
 #include <libxml/HTMLparser.h>
 #include <libxml/parser.h>
@@ -69,12 +73,21 @@ typedef struct node {
     struct node *next;
 } node;
 
+struct thread_args              /* thread input parameters struct */
+{
+    /* different inputs for thread */
+
+    int m; // number of pngs to get
+};
+
 node *frontier_list_head;
 node *png_list_head;
 node *visited_list_head;
 int frontier_size;
 // int png_size;
 int pngs_found;
+pthread_mutex_t mutex;
+sem_t available;
 
 #define PNG_SIG_SIZE    8 /* number of bytes of png image signature data */
 
@@ -400,8 +413,8 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
         // printf("hsearch returns: %i\n", hsearch(url_info, FIND));
 
         // if (!visited_search(eurl)) {
-            png_add_URL(eurl);
-            printf("pngs_found: %i\n", pngs_found);
+        png_add_URL(eurl);
+        printf("pngs_found: %i\n", pngs_found);
         // }
     }
     // sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
@@ -451,70 +464,27 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     return 0;//write_file(fname, p_recv_buf->buf, p_recv_buf->size);
 }
 
-int main( int argc, char** argv ) 
-{
+// function for thread
+void *do_work(void *arg) {
+
+    // initializes struct
+    struct thread_args *p_in = (struct thread_args *)arg;
+
+    int m = p_in->m;
+    char url[256];
     CURL *curl_handle;
     CURLcode res;
-    char url[256];
     RECV_BUF recv_buf;
-    frontier_list_head = NULL;
-    png_list_head = NULL;
-    visited_list_head = NULL;
-    frontier_size = 0;
-    // png_size = 0;
-    pngs_found = 0;
-
-    // visited hash table
-    (void) hcreate(10000);
-    int use_seed_url = 1;
-
-    // int c;
-    // int t = 1;
-    int m = 23;
-    // char *v = NULL;
-    // char *str = "option requires an argument";
-    
-    // while ((c = getopt (argc, argv, "t:m:v")) != -1) {
-    //     switch (c) {
-    //     case 't':
-	//         t = strtoul(optarg, NULL, 10);
-	//         printf("option -t specifies a value of %d.\n", t);
-	//         if (t <= 0) {
-    //             fprintf(stderr, "%s: %s > 0 -- 't'\n", argv[0], str);
-    //             return -1;
-    //         }
-    //         break;
-    //     case 'm':
-    //         m = strtoul(optarg, NULL, 10);
-	//         printf("option -m specifies a value of %d.\n", m);
-    //         if (m <= 0) {
-    //             fprintf(stderr, "%s: %s > 0 -- 'n'\n", argv[0], str);
-    //             return -1;
-    //         }
-    //         break;
-    //     // case 'v':
-    //     //     v = optarg;
-	//     //     printf("option -v specifies a value of %s.\n", *v);
-    //     //     // if (v <= 0) {
-    //     //     //     fprintf(stderr, "%s: %s 1, 2, or 3 -- 'v'\n", argv[0], str);
-    //     //     //     return -1;
-    //     //     // }
-    //     //     break;
-    //     default:
-    //         return -1;
-    //     }
-    // }
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    frontier_add_URL(SEED_URL);
-    // visited_add_URL(SEED_URL);
 
     while (frontier_size > 0 && pngs_found < m) {
-        // printf("pngs_found: %i\n", pngs_found);
-        printf("frontier size: %i\n", frontier_size);
+        // printf("frontier size: %i\n", frontier_size);
+
+        // sem_wait( &available );
+        // pthread_mutex_lock( &mutex );
+
 
         strcpy(url, frontier_take_next_url());
-        printf("URL: %s\n", url);
+        // printf("URL: %s\n", url);
         // printList(visited_list_head);
 
         curl_handle = easy_handle_init(&recv_buf, url);
@@ -554,6 +524,86 @@ int main( int argc, char** argv )
             cleanup(curl_handle, &recv_buf);
         }
 
+        // pthread_mutex_unlock( &mutex );
+        // sem_post( &available );
+
+    }
+
+    return NULL;
+}
+
+int main( int argc, char** argv ) 
+{
+    frontier_list_head = NULL;
+    png_list_head = NULL;
+    visited_list_head = NULL;
+    frontier_size = 0;
+    // png_size = 0;
+    pngs_found = 0;
+
+    sem_init( &available, 0, 1 );
+    pthread_mutex_init( &mutex, NULL );
+
+    // visited hash table
+    (void) hcreate(10000);
+    int use_seed_url = 1;
+
+    int c;
+    int t = 1;
+    int m = 13;
+    char *v = NULL;
+    char *str = "option requires an argument";
+    
+    // while ((c = getopt (argc, argv, "t:m:v")) != -1) {
+    //     switch (c) {
+    //     case 't':
+	//         t = strtoul(optarg, NULL, 10);
+	//         printf("option -t specifies a value of %d.\n", t);
+	//         if (t <= 0) {
+    //             fprintf(stderr, "%s: %s > 0 -- 't'\n", argv[0], str);
+    //             return -1;
+    //         }
+    //         break;
+    //     case 'm':
+    //         m = strtoul(optarg, NULL, 10);
+	//         printf("option -m specifies a value of %d.\n", m);
+    //         if (m <= 0) {
+    //             fprintf(stderr, "%s: %s > 0 -- 'n'\n", argv[0], str);
+    //             return -1;
+    //         }
+    //         break;
+    //     // case 'v':
+    //     //     v = optarg;
+	//     //     printf("option -v specifies a value of %s.\n", *v);
+    //     //     // if (v <= 0) {
+    //     //     //     fprintf(stderr, "%s: %s 1, 2, or 3 -- 'v'\n", argv[0], str);
+    //     //     //     return -1;
+    //     //     // }
+    //     //     break;
+    //     default:
+    //         return -1;
+    //     }
+    // }
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    frontier_add_URL(SEED_URL);
+    // visited_add_URL(SEED_URL);
+
+    // threads are initialized
+    pthread_t *p_tids = malloc(sizeof(pthread_t) * t);
+    struct thread_args in_params[t];
+
+    // creates appropriate threads
+    for (int i=0; i<t; i++) {
+        in_params[i].m = m;
+
+        // calls thread function
+        pthread_create(p_tids + i, NULL, do_work, in_params + i); 
+    }
+
+    for(int i = 0; i< t; i++) {
+        pthread_join(p_tids[i], NULL);
+        //fprintf(stderr, "Thread %d terminated\n", i);
     }
 
     printf("PRINTING PNGS FOUND:\n");
@@ -561,6 +611,15 @@ int main( int argc, char** argv )
 
     free_list(png_list_head);
     free_list(frontier_list_head);
+
+    // frees dynamically allocated threads
+    free(p_tids);
+    curl_global_cleanup();
+
+    sem_destroy( &available );
+    pthread_mutex_destroy( &mutex );
+    pthread_exit( 0 );
+
 
     return 0;
 }
