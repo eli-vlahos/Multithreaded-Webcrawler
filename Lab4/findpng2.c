@@ -493,12 +493,11 @@ void *do_work(void *arg) {
         /* process the download data */
         process_data(curl_handle, &recv_buf);
 
-        /* cleaning up */
-        if (frontier_size == 0 || pngs_found == m) {
-            cleanup(curl_handle, &recv_buf);
-        }
 
     }
+    /* cleaning up */
+    cleanup(curl_handle, &recv_buf);
+
 
     return NULL;
 }
