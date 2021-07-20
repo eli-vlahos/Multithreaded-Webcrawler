@@ -79,14 +79,16 @@ typedef struct node {
 struct thread_args              /* thread input parameters struct */
 {
     /* different inputs for thread */
-
     int m; // number of pngs to get
+    int t; // number of threads
+    pthread_t *tids; // tids
 };
 
 node *frontier_list_head;
 node *png_list_head;
 node *visited_list_head;
 int frontier_size;
+int m;
 int pngs_found;
 char *seed_url;
 pthread_mutex_t visited_mutex;
@@ -412,10 +414,12 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     pthread_mutex_lock( &curl_mutex );
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     pthread_mutex_unlock( &curl_mutex );
-    if ( eurl != NULL && is_png(p_recv_buf->buf)) {
+    if ( eurl != NULL && is_png(p_recv_buf->buf) ) {
         // sem_wait(&png_sem);
         pthread_mutex_lock( &png_mutex );
-        png_add_URL(eurl);
+        if (pngs_found < m && frontier_size > 0) {
+            png_add_URL(eurl);
+        }
         pthread_mutex_unlock( &png_mutex );
         // sem_post(&png_sem);
     }
@@ -472,15 +476,16 @@ void *do_work(void *arg) {
     struct thread_args *p_in = (struct thread_args *)arg;
 
     int m = p_in->m;
+    int t = p_in->t;
+    // pthread_t *tids = p_in->tids;
     char url[256];
     CURL *curl_handle;
     CURLcode res;
     RECV_BUF recv_buf;
 
     int using_seed_url = 1;
-    // || using_seed_url
-    while ((frontier_size > 0 || using_seed_url) && pngs_found < m) {
 
+    while ((frontier_size > 0 || using_seed_url) && pngs_found < m) {
         sem_wait( &frontier_sem );
 
         pthread_mutex_lock( &frontier_mutex );
@@ -552,7 +557,6 @@ int main( int argc, char** argv )
 
     int c;
     int t;
-    int m;
     char *v = NULL;
     int log_lines = 15;
     char *str = "option requires an argument";
@@ -593,9 +597,11 @@ int main( int argc, char** argv )
     struct thread_args in_params[t];
 
     // creates appropriate threads
+    in_params->tids = p_tids;
     for (int i=0; i<t; i++) {
         in_params[i].m = m;
-
+        in_params[i].t = t;
+        // in_params[i].tids = p_tids[i];
         // calls thread function
         pthread_create(p_tids + i, NULL, do_work, in_params + i); 
     }
