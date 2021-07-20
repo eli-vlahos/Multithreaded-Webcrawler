@@ -489,7 +489,9 @@ void *do_work(void *arg) {
         sem_wait( &frontier_sem );
 
         pthread_mutex_lock( &frontier_mutex );
-        strcpy(url, frontier_take_next_url());
+        char *temp_url = frontier_take_next_url();
+        strcpy(url, temp_url);
+        free(temp_url);
         if (strcmp(url, seed_url) == 0) {
             using_seed_url = 1;
         } else {
@@ -509,7 +511,11 @@ void *do_work(void *arg) {
         while (res != CURLE_OK && frontier_size > 0) {
             cleanup(curl_handle, &recv_buf);
             pthread_mutex_lock( &frontier_mutex );
-            strcpy(url, frontier_take_next_url());
+
+            char *temp_url = frontier_take_next_url();
+            strcpy(url, temp_url);
+            free(temp_url);
+
             pthread_mutex_unlock( &frontier_mutex );
             curl_handle = easy_handle_init(&recv_buf, url);
             res = curl_easy_perform(curl_handle);
@@ -528,7 +534,7 @@ void *do_work(void *arg) {
 
     }
 
-
+    printf("hello\n");
     return NULL;
 }
 
@@ -625,6 +631,7 @@ int main( int argc, char** argv )
             // do if statement
             node *temp = visited_list_head;
             visited_list_head = visited_list_head->next;
+            free(temp->url);
             free(temp);
         }
         fclose(fp);
@@ -639,9 +646,12 @@ int main( int argc, char** argv )
         
         node *temp = png_list_head;
         png_list_head = png_list_head->next;
+        free(temp->url);
         free(temp);
     }
     fclose(png_file);
+
+    free_list(frontier_list_head);
 
     // frees dynamically allocated threads
     free(p_tids);
@@ -662,10 +672,6 @@ int main( int argc, char** argv )
     pthread_mutex_destroy( &frontier_mutex );
     pthread_mutex_destroy( &png_mutex );
     pthread_mutex_destroy( &curl_mutex );
-
-    free_list(png_list_head);
-    free_list(frontier_list_head);
-    free_list(visited_list_head);
 
     pthread_exit( 0 );
 
@@ -760,11 +766,11 @@ int visited_search(char *url) {
 
 
 void free_list(node* head) {
-   node* tmp;
+
    while (head != NULL) {
-        tmp = head;
+        node* tmp = head;
         head = head->next;
-        tmp->url = NULL;
+
         free(tmp->url);
         free(tmp);
     }
