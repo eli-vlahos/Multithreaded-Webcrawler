@@ -188,18 +188,18 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
             }
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
                 if (!visited_search(href)) {
-                    sem_wait(&frontier_sem);
+                    // sem_wait(&frontier_sem);
                     pthread_mutex_lock( &frontier_mutex );
                     frontier_add_URL(href);
                     pthread_mutex_unlock( &frontier_mutex );
                     sem_post( &frontier_sem);
                 
                 }
-                sem_wait(&visited_sem);
+                // sem_wait(&visited_sem);
                 pthread_mutex_lock( &visited_mutex );
                 visited_add_URL (href);
                 pthread_mutex_unlock( &visited_mutex );
-                sem_post(&visited_sem);
+                // sem_post(&visited_sem);
             }
             xmlFree(href);
         }
@@ -394,11 +394,11 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *url = NULL; 
     pid_t pid =getpid();
 
-    sem_wait(&curl_sem);
+    // sem_wait(&curl_sem);
     pthread_mutex_lock( &curl_mutex );
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
     pthread_mutex_unlock( &curl_mutex );
-    sem_post(&curl_sem);
+    // sem_post(&curl_sem);
     find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
     
     return 0; 
@@ -409,13 +409,15 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     // pid_t pid =getpid();
     // char fname[256];
     char *eurl = NULL;          /* effective URL */
+    pthread_mutex_lock( &curl_mutex );
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
+    pthread_mutex_unlock( &curl_mutex );
     if ( eurl != NULL && is_png(p_recv_buf->buf)) {
-        sem_wait(&png_sem);
+        // sem_wait(&png_sem);
         pthread_mutex_lock( &png_mutex );
         png_add_URL(eurl);
         pthread_mutex_unlock( &png_mutex );
-        sem_post(&png_sem);
+        // sem_post(&png_sem);
     }
     return 0;
 }
@@ -440,11 +442,11 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     }
 
     char *ct = NULL;
-    sem_wait(&curl_sem);
+    // sem_wait(&curl_sem);
     pthread_mutex_lock( &curl_mutex );
     res = curl_easy_getinfo(curl_handle, CURLINFO_CONTENT_TYPE, &ct);
     pthread_mutex_unlock( &curl_mutex );
-    sem_post(&curl_sem);
+    // sem_post(&curl_sem);
     if ( res == CURLE_OK && ct != NULL ) {
     	// printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
     } else {
@@ -507,11 +509,11 @@ void *do_work(void *arg) {
             curl_handle = easy_handle_init(&recv_buf, url);
             res = curl_easy_perform(curl_handle);
         }
-        sem_wait(&visited_sem);
+        // sem_wait(&visited_sem);
         pthread_mutex_lock( &visited_mutex );
         visited_add_URL(url);
         pthread_mutex_unlock( &visited_mutex );
-        sem_post(&visited_sem);
+        // sem_post(&visited_sem);
 
         /* process the download data */
         process_data(curl_handle, &recv_buf);
