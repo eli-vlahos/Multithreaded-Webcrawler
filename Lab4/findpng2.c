@@ -93,7 +93,10 @@ pthread_mutex_t frontier_mutex;
 pthread_mutex_t png_mutex;
 pthread_mutex_t curl_mutex;
 
-sem_t available;
+sem_t visited_sem;
+sem_t frontier_sem;
+sem_t png_sem;
+sem_t curl_sem;
 
 double times[2];
 struct timeval tv;
@@ -184,15 +187,18 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
                 if (!visited_search(href)) {
 
+                    sem_wait(&frontier_sem);
                     pthread_mutex_lock( &frontier_mutex );
                     frontier_add_URL(href);
                     pthread_mutex_unlock( &frontier_mutex );
-                    sem_post( &available );
+                    sem_post( &frontier_sem);
                 
                 }
+                sem_wait(&visited_sem);
                 pthread_mutex_lock( &visited_mutex );
                 visited_add_URL (href);
                 pthread_mutex_unlock( &visited_mutex );
+                sem_post(&visited_sem);
             }
             xmlFree(href);
         }
@@ -387,9 +393,11 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *url = NULL; 
     pid_t pid =getpid();
 
-    // pthread_mutex_lock( &curl_mutex );
+    sem_wait(&curl_sem);
+    pthread_mutex_lock( &curl_mutex );
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
-    // pthread_mutex_unlock( &curl_mutex );
+    pthread_mutex_unlock( &curl_mutex );
+    sem_post(&curl_sem);
     find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
     
     return 0; 
@@ -402,9 +410,11 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *eurl = NULL;          /* effective URL */
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(p_recv_buf->buf)) {
+        sem_wait(&png_sem);
         pthread_mutex_lock( &png_mutex );
         png_add_URL(eurl);
         pthread_mutex_unlock( &png_mutex );
+        sem_post(&png_sem);
     }
     return 0;
 }
@@ -429,9 +439,12 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     }
 
     char *ct = NULL;
+
+    sem_wait(&curl_sem);
     pthread_mutex_lock( &curl_mutex );
     res = curl_easy_getinfo(curl_handle, CURLINFO_CONTENT_TYPE, &ct);
     pthread_mutex_unlock( &curl_mutex );
+    sem_post(&curl_sem);
     if ( res == CURLE_OK && ct != NULL ) {
     	// printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
     } else {
@@ -464,11 +477,11 @@ void *do_work(void *arg) {
 
     while (frontier_size > 0 && pngs_found < m) {
 
-        sem_wait( &available );
-
+        sem_wait( &frontier_sem );
         pthread_mutex_lock( &frontier_mutex );
         strcpy(url, frontier_take_next_url());
         pthread_mutex_unlock( &frontier_mutex );
+        sem_post(&frontier_sem);
 
         curl_handle = easy_handle_init(&recv_buf, url);
         if ( curl_handle == NULL ) {
@@ -486,9 +499,11 @@ void *do_work(void *arg) {
             res = curl_easy_perform(curl_handle);
         }
 
+        sem_wait(&visited_sem);
         pthread_mutex_lock( &visited_mutex );
         visited_add_URL(url);
         pthread_mutex_unlock( &visited_mutex );
+        sem_post(&visited_sem);
 
         /* process the download data */
         process_data(curl_handle, &recv_buf);
@@ -520,7 +535,10 @@ int main( int argc, char** argv )
     pthread_mutex_init( &frontier_mutex, NULL );
     pthread_mutex_init( &png_mutex, NULL );
     pthread_mutex_init( &curl_mutex, NULL );
-    sem_init( &available, 0 , 1 );
+    sem_init( &png_sem, 0 , 1 );
+    sem_init(&frontier_sem, 0, 1);
+    sem_init(&visited_sem, 0, 1);
+    sem_init(&curl_sem, 0, 1);
 
     int c;
     int t;
@@ -623,7 +641,11 @@ int main( int argc, char** argv )
     times[1] = (tv.tv_sec) + tv.tv_usec/1000000.;
     printf("findpng2 execution time: %.6lf seconds\n",  times[1] - times[0]);
 
-    sem_destroy( &available );
+    sem_destroy( &png_sem );
+    sem_destroy( &frontier_sem);
+    sem_destroy( &visited_sem);
+    sem_destroy( &curl_sem);
+
     pthread_mutex_destroy( &visited_mutex );
     pthread_mutex_destroy( &frontier_mutex );
     pthread_mutex_destroy( &png_mutex );
