@@ -38,7 +38,9 @@
 #include <semaphore.h>
 #include <openssl/sha.h>
 #include <stdbool.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include <libxml/HTMLparser.h>
 #include <libxml/parser.h>
@@ -89,6 +91,9 @@ int frontier_size;
 int pngs_found;
 pthread_mutex_t mutex;
 sem_t available;
+
+double times[2];
+struct timeval tv;
 
 #define PNG_SIG_SIZE    8 /* number of bytes of png image signature data */
 
@@ -540,9 +545,6 @@ int main( int argc, char** argv )
     frontier_size = 0;
     pngs_found = 0;
 
-    double times[2];
-    struct timeval tv;
-
     if (gettimeofday(&tv, NULL) != 0) {
         perror("gettimeofday");
         abort();
@@ -653,15 +655,19 @@ int main( int argc, char** argv )
     }
     fclose(png_file);
 
-    times[1] = (tv.tv_sec) + tv.tv_usec/1000000.;
-    printf("findpng2 execution time: %u seconds\n", getpid(),  times[1] - times[0]);
-
     free_list(png_list_head);
     free_list(frontier_list_head);
 
     // frees dynamically allocated threads
     free(p_tids);
     curl_global_cleanup();
+
+    if (gettimeofday(&tv, NULL) != 0) {
+        perror("gettimeofday");
+        abort();
+    }
+    times[1] = (tv.tv_sec) + tv.tv_usec/1000000.;
+    printf("findpng2 execution time: %.6lf seconds\n",  times[1] - times[0]);
 
     sem_destroy( &available );
     pthread_mutex_destroy( &mutex );
