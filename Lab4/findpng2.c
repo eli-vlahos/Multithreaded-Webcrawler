@@ -87,9 +87,12 @@ node *frontier_list_head;
 node *png_list_head;
 node *visited_list_head;
 int frontier_size;
-// int png_size;
 int pngs_found;
-pthread_mutex_t mutex;
+pthread_mutex_t visited_mutex;
+pthread_mutex_t frontier_mutex;
+pthread_mutex_t png_mutex;
+pthread_mutex_t curl_mutex;
+
 sem_t available;
 
 double times[2];
@@ -111,8 +114,6 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf);
 void frontier_add_URL(char *p_recv_buf);
 char *frontier_take_next_url();
 void png_add_URL(char *p_recv_buf);
-char *png_take_next_url();
-void printList(node* head);
 int is_png(unsigned char *buf);
 void free_list(node* head);
 int visited_search(char *url);
@@ -181,14 +182,17 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
                 xmlFree(old);
             }
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
-                // printf("href: %s\n", href);
-                // char *url;
-                // sprintf(url, "%s", href);
-                // printf("url!123: %s\n", href);
                 if (!visited_search(href)) {
+
+                    pthread_mutex_lock( &frontier_mutex );
                     frontier_add_URL(href);
+                    pthread_mutex_unlock( &frontier_mutex );
+                    sem_post( &available );
+                
                 }
-                //printList(frontier_list_head);
+                pthread_mutex_lock( &visited_mutex );
+                visited_add_URL (href);
+                pthread_mutex_unlock( &visited_mutex );
             }
             xmlFree(href);
         }
@@ -383,26 +387,12 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *url = NULL; 
     pid_t pid =getpid();
 
+    // pthread_mutex_lock( &curl_mutex );
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &url);
-    // node *curr_url_frontier = frontier_list_head;
-    // check that recv_buf seq # isn't in hash table already
-    // ENTRY url_info;
-    // url_info.key = strdup(url);
-    // url_info.data = NULL;
-    
-    // printf("hsearch returns: %i\n", hsearch(url_info, FIND));
-
-    // if (hsearch(url_info, FIND) == NULL) {
-    //     printf("haven't seen this url before!\n");
-    //     // add to visited
-    //     // printf("URL WE aDD: %s\n", url_info.key);
-    //     // hsearch(url_info, ENTER);
+    // pthread_mutex_unlock( &curl_mutex );
     find_http(p_recv_buf->buf, p_recv_buf->size, follow_relative_link, url); 
-    // } else {
-    //     printf("already visited this url\n");
-    // }
     
-    return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
+    return 0; 
 }
 
 int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
@@ -412,19 +402,11 @@ int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
     char *eurl = NULL;          /* effective URL */
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(p_recv_buf->buf)) {
-        // printf("The PNG url is: %s\n", eurl);
-        // ENTRY url_info;
-        // url_info.key = strdup(eurl);
-        // url_info.data = NULL;
-        // printf("hsearch returns: %i\n", hsearch(url_info, FIND));
-
-        // if (!visited_search(eurl)) {
+        pthread_mutex_lock( &png_mutex );
         png_add_URL(eurl);
-        // printf("pngs_found: %i\n", pngs_found);
-        // }
+        pthread_mutex_unlock( &png_mutex );
     }
-    // sprintf(fname, "./output_%d_%d.png", p_recv_buf->seq, pid);
-    return 0; //write_file(fname, p_recv_buf->buf, p_recv_buf->size);
+    return 0;
 }
 /**
  * @brief process teh download data by curl
@@ -441,17 +423,15 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     long response_code;
 
     res = curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if ( res == CURLE_OK ) {
-	    // printf("Response code: %ld\n", response_code);
-    }
 
     if ( response_code >= 400 ) { 
-    	// fprintf(stderr, "Error.\n");
         return 1;
     }
 
     char *ct = NULL;
+    pthread_mutex_lock( &curl_mutex );
     res = curl_easy_getinfo(curl_handle, CURLINFO_CONTENT_TYPE, &ct);
+    pthread_mutex_unlock( &curl_mutex );
     if ( res == CURLE_OK && ct != NULL ) {
     	// printf("Content-Type: %s, len=%ld\n", ct, strlen(ct));
     } else {
@@ -467,7 +447,7 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
         sprintf(fname, "./output_%d", pid);
     }
 
-    return 0;//write_file(fname, p_recv_buf->buf, p_recv_buf->size);
+    return 0;
 }
 
 // function for thread
@@ -483,54 +463,40 @@ void *do_work(void *arg) {
     RECV_BUF recv_buf;
 
     while (frontier_size > 0 && pngs_found < m) {
-        // printf("frontier size: %i\n", frontier_size);
 
         sem_wait( &available );
-        pthread_mutex_lock( &mutex );
 
+        pthread_mutex_lock( &frontier_mutex );
         strcpy(url, frontier_take_next_url());
-        // printf("URL: %s\n", url);
-        // printList(visited_list_head);
+        pthread_mutex_unlock( &frontier_mutex );
 
         curl_handle = easy_handle_init(&recv_buf, url);
         if ( curl_handle == NULL ) {
-            // fprintf(stderr, "Curl initialization failed. Exiting...\n");
             curl_global_cleanup();
             abort();
         }
+
         /* get it! */
         res = curl_easy_perform(curl_handle);
 
         while (res != CURLE_OK && frontier_size > 0) {
-            // fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
             cleanup(curl_handle, &recv_buf);
             strcpy(url, frontier_take_next_url());
-            // printf("taking next URL: %s\n", url);
             curl_handle = easy_handle_init(&recv_buf, url);
-            ENTRY url_info;
-            url_info.key = url;
-            url_info.data = NULL;
-            (void) hsearch(url_info, ENTER);
             res = curl_easy_perform(curl_handle);
         }
 
+        pthread_mutex_lock( &visited_mutex );
+        visited_add_URL(url);
+        pthread_mutex_unlock( &visited_mutex );
 
-        if (!visited_search(url)) {
-            visited_add_URL(url);
+        /* process the download data */
+        process_data(curl_handle, &recv_buf);
 
-            /* process the download data */
-            process_data(curl_handle, &recv_buf);
-            // printf("frontier size: %i\n", frontier_size);
-
-        }
-        
         /* cleaning up */
         if (frontier_size == 0 || pngs_found == m) {
             cleanup(curl_handle, &recv_buf);
         }
-
-        pthread_mutex_unlock( &mutex );
-        sem_post( &available );
 
     }
 
@@ -551,12 +517,11 @@ int main( int argc, char** argv )
     }
     times[0] = (tv.tv_sec) + tv.tv_usec/1000000.;
 
-    sem_init( &available, 0, 1 );
-    pthread_mutex_init( &mutex, NULL );
-
-    // visited hash table
-    (void) hcreate(10000);
-    int use_seed_url = 1;
+    pthread_mutex_init( &visited_mutex, NULL );
+    pthread_mutex_init( &frontier_mutex, NULL );
+    pthread_mutex_init( &png_mutex, NULL );
+    pthread_mutex_init( &curl_mutex, NULL );
+    sem_init( &available, 0 , 1 );
 
     int c;
     int t;
@@ -569,7 +534,6 @@ int main( int argc, char** argv )
         switch (c) {
         case 't':
 	        t = strtoul(optarg, NULL, 10);
-	        printf("option -t specifies a value of %d.\n", t);
 	        if (t <= 0) {
                 fprintf(stderr, "%s: %s > 0 -- 't'\n", argv[0], str);
                 return -1;
@@ -577,7 +541,6 @@ int main( int argc, char** argv )
             break;
         case 'm':
             m = strtoul(optarg, NULL, 10);
-	        printf("option -m specifies a value of %d.\n", m);
             if (m <= 0) {
                 fprintf(stderr, "%s: %s > 0 -- 'n'\n", argv[0], str);
                 return -1;
@@ -588,13 +551,10 @@ int main( int argc, char** argv )
             if (v[0] == m){
                 v = NULL;
             }
-            else{
-	            printf("option -v specifies a value of %s.\n", v);
-            }
             break;
         }
     }
-    // printf("hello");
+
     char *seed_url = argv[argc-1];
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -615,18 +575,14 @@ int main( int argc, char** argv )
 
     for(int i = 0; i< t; i++) {
         pthread_join(p_tids[i], NULL);
-        //fprintf(stderr, "Thread %d terminated\n", i);
     }
-
-    // printf("PRINTING PNGS FOUND:\n");
-    // printList(png_list_head);
 
     if (v != NULL){
 
         FILE *fp = NULL;
         fp = fopen(v, "w");
 
-        while(frontier_list_head !=NULL){
+        while(visited_list_head != NULL){
             if (visited_list_head == NULL){
                 break;
             }
@@ -641,7 +597,6 @@ int main( int argc, char** argv )
         fclose(fp);
     }
 
-    // need to replace file name
     FILE *png_file = NULL;
     png_file = fopen("png_urls.txt", "w");
 
@@ -670,9 +625,12 @@ int main( int argc, char** argv )
     printf("findpng2 execution time: %.6lf seconds\n",  times[1] - times[0]);
 
     sem_destroy( &available );
-    pthread_mutex_destroy( &mutex );
-    pthread_exit( 0 );
+    pthread_mutex_destroy( &visited_mutex );
+    pthread_mutex_destroy( &frontier_mutex );
+    pthread_mutex_destroy( &png_mutex );
+    pthread_mutex_destroy( &curl_mutex );
 
+    pthread_exit( 0 );
 
     return 0;
 }
@@ -702,7 +660,6 @@ char *frontier_take_next_url() {
     if (frontier_list_head == NULL)
     {
         /* Something has gone wrong */
-        // printf("Trying to take from an empty list!\n");
         exit(-1);
     }
     node *head = frontier_list_head;
@@ -712,6 +669,7 @@ char *frontier_take_next_url() {
     frontier_size -= 1;
     return u;
 }
+
 
 void png_add_URL(char *url) {
     node *n = malloc(sizeof(node));
@@ -723,17 +681,15 @@ void png_add_URL(char *url) {
 
     if (png_list_head == NULL){
         png_list_head = n;
-        // printf("added at beginning\n");
     } else {
         while (current->next != NULL) {
             current = current->next;
         }
         current->next = n;
-        // printf("added later\n");
     }
     pngs_found += 1;
-    // printList(png_list_head);
 }
+
 
 void visited_add_URL(char *url) {
     node *n = malloc(sizeof(node));
@@ -764,22 +720,7 @@ int visited_search(char *url) {
     }
     return 0;
 }
- 
 
-char *png_take_next_url() {
-    if (png_list_head == NULL)
-    {
-        /* Something has gone wrong */
-        // printf("Trying to take from an empty list!\n");
-        exit(-1);
-    }
-    node *head = png_list_head;
-    char *u = head->url;
-    png_list_head = png_list_head->next;
-    free(head);
-    // pngs_found -= 1;
-    return u;
-}
 
 void free_list(node* head) {
    node* tmp;
@@ -803,13 +744,4 @@ int is_png(unsigned char *buf) {
         }
     }
     return is_PNG;
-}
-
-void printList(node* head) {
-    node* curr = head;
-    while (curr) {
-        printf("LL: %s \n", curr->url);
-        curr = curr->next;
-    }
-    printf("null\n");
 }
