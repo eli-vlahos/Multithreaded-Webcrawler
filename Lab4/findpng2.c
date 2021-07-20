@@ -88,6 +88,7 @@ node *png_list_head;
 node *visited_list_head;
 int frontier_size;
 int pngs_found;
+char *seed_url;
 pthread_mutex_t visited_mutex;
 pthread_mutex_t frontier_mutex;
 pthread_mutex_t png_mutex;
@@ -120,6 +121,7 @@ void png_add_URL(char *p_recv_buf);
 int is_png(unsigned char *buf);
 void free_list(node* head);
 int visited_search(char *url);
+void visited_add_URL(char *url);
 
 htmlDocPtr mem_getdoc(char *buf, int size, const char *url)
 {
@@ -186,7 +188,6 @@ int find_http(char *buf, int size, int follow_relative_links, const char *base_u
             }
             if ( href != NULL && !strncmp((const char *)href, "http", 4) ) {
                 if (!visited_search(href)) {
-
                     sem_wait(&frontier_sem);
                     pthread_mutex_lock( &frontier_mutex );
                     frontier_add_URL(href);
@@ -405,8 +406,8 @@ int process_html(CURL *curl_handle, RECV_BUF *p_recv_buf)
 
 int process_png(CURL *curl_handle, RECV_BUF *p_recv_buf)
 {
-    pid_t pid =getpid();
-    char fname[256];
+    // pid_t pid =getpid();
+    // char fname[256];
     char *eurl = NULL;          /* effective URL */
     curl_easy_getinfo(curl_handle, CURLINFO_EFFECTIVE_URL, &eurl);
     if ( eurl != NULL && is_png(p_recv_buf->buf)) {
@@ -439,7 +440,6 @@ int process_data(CURL *curl_handle, RECV_BUF *p_recv_buf)
     }
 
     char *ct = NULL;
-
     sem_wait(&curl_sem);
     pthread_mutex_lock( &curl_mutex );
     res = curl_easy_getinfo(curl_handle, CURLINFO_CONTENT_TYPE, &ct);
@@ -475,13 +475,20 @@ void *do_work(void *arg) {
     CURLcode res;
     RECV_BUF recv_buf;
 
-    while (frontier_size > 0 && pngs_found < m) {
+    int using_seed_url = 1;
+    // || using_seed_url
+    while ((frontier_size > 0 || using_seed_url) && pngs_found < m) {
 
         sem_wait( &frontier_sem );
+
         pthread_mutex_lock( &frontier_mutex );
         strcpy(url, frontier_take_next_url());
+        if (strcmp(url, seed_url) == 0) {
+            using_seed_url = 1;
+        } else {
+            using_seed_url = 0;
+        }
         pthread_mutex_unlock( &frontier_mutex );
-        sem_post(&frontier_sem);
 
         curl_handle = easy_handle_init(&recv_buf, url);
         if ( curl_handle == NULL ) {
@@ -494,11 +501,12 @@ void *do_work(void *arg) {
 
         while (res != CURLE_OK && frontier_size > 0) {
             cleanup(curl_handle, &recv_buf);
+            pthread_mutex_lock( &frontier_mutex );
             strcpy(url, frontier_take_next_url());
+            pthread_mutex_unlock( &frontier_mutex );
             curl_handle = easy_handle_init(&recv_buf, url);
             res = curl_easy_perform(curl_handle);
         }
-
         sem_wait(&visited_sem);
         pthread_mutex_lock( &visited_mutex );
         visited_add_URL(url);
@@ -508,10 +516,10 @@ void *do_work(void *arg) {
         /* process the download data */
         process_data(curl_handle, &recv_buf);
 
+        /* cleaning up */
+        cleanup(curl_handle, &recv_buf);
 
     }
-    /* cleaning up */
-    cleanup(curl_handle, &recv_buf);
 
 
     return NULL;
@@ -572,7 +580,7 @@ int main( int argc, char** argv )
         }
     }
 
-    char *seed_url = argv[argc-1];
+    seed_url = argv[argc-1];
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
@@ -627,9 +635,6 @@ int main( int argc, char** argv )
     }
     fclose(png_file);
 
-    free_list(png_list_head);
-    free_list(frontier_list_head);
-
     // frees dynamically allocated threads
     free(p_tids);
     curl_global_cleanup();
@@ -645,11 +650,14 @@ int main( int argc, char** argv )
     sem_destroy( &frontier_sem);
     sem_destroy( &visited_sem);
     sem_destroy( &curl_sem);
-
     pthread_mutex_destroy( &visited_mutex );
     pthread_mutex_destroy( &frontier_mutex );
     pthread_mutex_destroy( &png_mutex );
     pthread_mutex_destroy( &curl_mutex );
+
+    free_list(png_list_head);
+    free_list(frontier_list_head);
+    free_list(visited_list_head);
 
     pthread_exit( 0 );
 
@@ -748,6 +756,8 @@ void free_list(node* head) {
    while (head != NULL) {
         tmp = head;
         head = head->next;
+        tmp->url = NULL;
+        free(tmp->url);
         free(tmp);
     }
 }
