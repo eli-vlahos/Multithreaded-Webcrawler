@@ -534,7 +534,6 @@ void *do_work(void *arg) {
 
     }
 
-    printf("hello\n");
     return NULL;
 }
 
@@ -631,7 +630,7 @@ int main( int argc, char** argv )
             // do if statement
             node *temp = visited_list_head;
             visited_list_head = visited_list_head->next;
-            free(temp->url);
+            // free(temp->url);
             free(temp);
         }
         fclose(fp);
@@ -646,12 +645,12 @@ int main( int argc, char** argv )
         
         node *temp = png_list_head;
         png_list_head = png_list_head->next;
-        free(temp->url);
+        // free(temp->url);
         free(temp);
     }
     fclose(png_file);
 
-    free_list(frontier_list_head);
+    // free_list(frontier_list_head);
 
     // frees dynamically allocated threads
     free(p_tids);
